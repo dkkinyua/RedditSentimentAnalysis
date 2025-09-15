@@ -8,6 +8,11 @@ __pycache__/
 
 # env files
 .env
+myenv
+
+#Airflow files and folders
+logs
+config
 
 # Distribution / packaging
 .Python
