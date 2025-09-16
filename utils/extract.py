@@ -28,3 +28,10 @@ def clean_text(text):
     text = ' '.join(text.split())
     return text.strip()
 
+def get_sentiment(x):
+    if x >= 0.05:
+        return "Positive"
+    elif x <= -0.05:
+        return "Negative"
+    else:
+        return "Neutral"
