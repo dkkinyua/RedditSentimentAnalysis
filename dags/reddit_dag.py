@@ -12,6 +12,7 @@ from sqlalchemy import create_engine
 
 load_dotenv()
 
+sender = os.getenv("SENDER")
 CLIENT_ID = os.getenv("CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY")
 DB_URL = os.getenv("DB_URL")
@@ -19,6 +20,11 @@ DB_URL = os.getenv("DB_URL")
 default_args = {
     'owner': 'Denzel Kinyua',
     'retries': 5,
+    "depends_on_past": False,
+    "email": [f"{sender}"],
+    "email_on_failure": True,
+    "email_on_retry": False, 
+    "email_on_success": False, # custom email task available
     'retry_delay': timedelta(minutes=10),
     'start_date': datetime(2025, 9, 16)
 }
