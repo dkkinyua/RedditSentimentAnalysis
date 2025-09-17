@@ -1,19 +1,18 @@
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import smtplib
 import numpy as np
 import pandas as pd
 from airflow.decorators import dag, task
+from airflow.sensors.external_task import ExternalTaskSensor
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from sqlalchemy import create_engine
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from utils.extract import get_sentiment
 
 load_dotenv()
+
 DB_URL = os.getenv("DB_URL")
 SENDER = os.getenv("SENDER")
 RECIPIENT = os.getenv("RECIPIENT")
@@ -22,8 +21,13 @@ EMAIL_PWD = os.getenv("EMAIL_PWD")
 default_args = {
     "owner": "Denzel Kinyua",
     "retries": 5,
+    "depends_on_past": False,
+    "email": [f"{SENDER}"],
+    "email_on_failure": True,
+    "email_on_retry": False, 
+    "email_on_success": False, # custom email task available
     "retry_delay": timedelta(minutes=10),
-    "start_date": datetime(2025, 8, 27),
+    "start_date": datetime(2025, 9, 16),
 }
 
 @dag(
@@ -34,9 +38,23 @@ default_args = {
     tags=["reddit", "sentiment", "nlp"],
 )
 def analyze_dag():
+    # this task waits for the reddit dag to finish extracting data first then runs this DAG as the first task
+    wait_task = ExternalTaskSensor(
+        task_id = 'wait_for_extraction',
+        external_dag_id = 'reddit_data_pipeline',
+        external_task_id = None, 
+        mode = 'poke',
+        poke_interval = 60,
+        timeout = 3600
+    )
+
     @task
     def analyze_text():
-        """fetch posts from Postgres, analyze sentiment, and save results back to a different psql table."""
+        """fetch posts from Postgres, analyze sentiment from posts, and save results back to a different psql table."""
+        # Impoting these modules inside this task helps with run time
+        from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+        from utils.extract import get_sentiment
+
         engine = create_engine(DB_URL)
         analyzer = SentimentIntensityAnalyzer()
 
@@ -70,7 +88,7 @@ def analyze_dag():
 
     @task
     def send_email(message: str):
-        """Send a notification email with DAG run results."""
+        """Send a notification email with DAG run results to my email."""
         try:
             subject = "DAG Run Complete"
             body = f"""
@@ -95,6 +113,6 @@ def analyze_dag():
     message = analyze_text()
     email = send_email(message)
 
-    message >> email
+    wait_task >> message >> email
 
 analyze = analyze_dag()
