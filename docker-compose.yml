@@ -72,6 +72,20 @@ x-airflow-common:
     # The following line can be used to set a custom config file, stored in the local config folder
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
     # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    AIRFLOW__WEBSERVER__WORKERS: 2
+    # SMTP settings
+    AIRFLOW__SMTP__SMTP_HOST: smtp.gmail.com
+    AIRFLOW__SMTP__SMTP_STARTTLS: 'false'
+    AIRFLOW__SMTP__SMTP_SSL: 'true'
+    AIRFLOW__SMTP__SMTP_USER: ${SENDER}
+    AIRFLOW__SMTP__SMTP_PASSWORD: ${EMAIL_PWD}
+    AIRFLOW__SMTP__SMTP_PORT: 465
+    AIRFLOW__SMTP__SMTP_MAIL_FROM: ${SENDER}
+    # Insert Metric settings here 
+    AIRFLOW__METRICS__STATSD_ON: "true"
+    AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+    AIRFLOW__METRICS__STATSD_PORT: 9125
+    AIRFLOW__METRICS__STATSD_PREFIX: airflow
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -135,7 +149,6 @@ services:
         condition: service_completed_successfully
     environment:
       <<: *airflow-common-env
-      AIRFLOW__WEBSERVER__WORKERS: 2
 
   airflow-scheduler:
     <<: *airflow-common
@@ -151,6 +164,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    environment:
+      <<: *airflow-common-env
 
   airflow-worker:
     <<: *airflow-common
@@ -189,6 +204,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    environment:
+      <<: *airflow-common-env
 
   airflow-init:
     <<: *airflow-common
@@ -289,5 +306,31 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  statsd-exporter:
+    image: prom/statsd-exporter
+    ports:
+      - "9102:9102"   
+      - "9125:9125/udp"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - statsd-exporter
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+
 volumes:
   postgres-db-volume:
+  grafana-storage:
